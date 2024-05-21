@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
+
+	"github.com/walrus811/chirpy/internal/database"
 )
 
 type apiConfig struct {
@@ -19,6 +23,13 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 func main() {
 	const filepathRoot = "."
 	const port = "8080"
+	const dbPath = "database.json"
+
+	db, dbErr := database.NewDB(dbPath)
+	if dbErr != nil {
+		fmt.Println("Error creating database")
+		return
+	}
 
 	cfg := &apiConfig{fileserverHits: 0}
 	mux := http.NewServeMux()
@@ -50,6 +61,68 @@ func main() {
 		w.Header().Add("Content-Type", "text/plain;charset=UTF-8")
 		w.Write([]byte("Hits reset to 0"))
 	})
+	mux.HandleFunc("GET /api/chirps", func(w http.ResponseWriter, r *http.Request) {
 
-	http.ListenAndServe(":8080", mux)
+		chrips, err := db.GetChirps()
+
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		respondWithJson(w, http.StatusOK, chrips)
+	})
+	mux.HandleFunc("POST /api/chirps", func(w http.ResponseWriter, r *http.Request) {
+		decoder := json.NewDecoder(r.Body)
+		reqObj := createChirpRequest{}
+		err := decoder.Decode(&reqObj)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		if len(reqObj.Body) > 140 {
+			respondWithError(w, http.StatusBadRequest, "Chirp is too long")
+			return
+		}
+
+		newChirp, createErr := db.CreateChirp(reqObj.Body)
+
+		if createErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		respondWithJson(w, http.StatusCreated, newChirp)
+	})
+
+	http.ListenAndServe(":"+port, mux)
+}
+
+type createChirpRequest struct {
+	Body string `json:"body"`
+}
+
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
+func respondWithError(w http.ResponseWriter, code int, msg string) {
+	w.WriteHeader(code)
+	w.Header().Add("Content-Type", "application/json;charset=UTF-8")
+	json.NewEncoder(w).Encode(ErrorResponse{Error: msg})
+}
+
+func respondWithJson(w http.ResponseWriter, code int, payload interface{}) {
+	w.WriteHeader(code)
+	w.Header().Add("Content-Type", "application/json;charset=UTF-8")
+	json.NewEncoder(w).Encode(payload)
+}
+
+func makeWordClean(word string) string {
+	lower := strings.ToLower(word)
+	if lower == "kerfuffle" || lower == "sharbert" || lower == "fornax" {
+		return "****"
+	}
+	return word
 }
