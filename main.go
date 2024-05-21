@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/walrus811/chirpy/internal/database"
@@ -61,8 +62,17 @@ func main() {
 		w.Header().Add("Content-Type", "text/plain;charset=UTF-8")
 		w.Write([]byte("Hits reset to 0"))
 	})
-	mux.HandleFunc("GET /api/chirps", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/chirps/{chirpID}", func(w http.ResponseWriter, r *http.Request) {
+		chirpID, err := strconv.Atoi(r.PathValue("chirpID"))
 
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid chirp ID")
+			return
+		}
+
+		respondWithJson(w, http.StatusOK, chirpID)
+	})
+	mux.HandleFunc("GET /api/chirps", func(w http.ResponseWriter, r *http.Request) {
 		chrips, err := db.GetChirps()
 
 		if err != nil {
