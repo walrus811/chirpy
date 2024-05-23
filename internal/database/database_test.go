@@ -147,3 +147,36 @@ func TestCreateUsers(t *testing.T) {
 		t.Errorf("Error cleaning up: %v", removeErr)
 	}
 }
+
+func TestLogin(t *testing.T) {
+	dbPath := "TestLogin.json"
+	db, newDBErr := NewDB(dbPath)
+	if newDBErr != nil {
+		t.Errorf("Error creating DB: %v", newDBErr)
+	}
+	if db == nil {
+		t.Errorf("DB is nil")
+	}
+	testData := []User{
+		{Email: "t1@naver.com", Password: "1234"},
+	}
+
+	for _, data := range testData {
+		_, createErr := db.CreateUser(data.Email, data.Password)
+		if createErr != nil {
+			t.Errorf("Error creating user: %v", createErr)
+		}
+	}
+
+	_, loginErr := db.LoginUser(testData[0].Email, testData[0].Password)
+	if loginErr != nil {
+		t.Errorf("Error logging in: %v", loginErr)
+	}
+
+	// Cleanup
+
+	removeErr := os.Remove(dbPath)
+	if removeErr != nil {
+		t.Errorf("Error cleaning up: %v", removeErr)
+	}
+}

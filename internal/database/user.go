@@ -25,14 +25,10 @@ func (db *DB) toHash(text string) (string, error) {
 func (db *DB) LoginUser(email, password string) (User, error) {
 	for _, user := range db.dbStructure.Users {
 		if user.Email == email {
-			hashed, hashErr := db.toHash(password)
+			compareErr := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 
-			if hashErr != nil {
-				return User{}, hashErr
-			}
-
-			if hashed != user.Password {
-				return User{}, fmt.Errorf("wrong password")
+			if compareErr != nil {
+				return User{}, fmt.Errorf("password is incorrect")
 			}
 
 			return user, nil
@@ -40,7 +36,6 @@ func (db *DB) LoginUser(email, password string) (User, error) {
 	}
 
 	return User{}, fmt.Errorf("user not found")
-
 }
 
 func (db *DB) CreateUser(email, password string) (User, error) {

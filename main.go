@@ -128,7 +128,9 @@ func main() {
 			return
 		}
 
-		respondWithJson(w, http.StatusCreated, newUser)
+		resObj := createUserResponse{newUser.Id, newUser.Email}
+
+		respondWithJson(w, http.StatusCreated, resObj)
 	})
 
 	mux.HandleFunc("POST /api/login", func(w http.ResponseWriter, r *http.Request) {
@@ -140,14 +142,16 @@ func main() {
 			return
 		}
 
-		newUser, createErr := db.CreateUser(reqObj.Email, reqObj.Password)
+		user, loginErr := db.LoginUser(reqObj.Email, reqObj.Password)
 
-		if createErr != nil {
-			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+		if loginErr != nil {
+			respondWithError(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
 
-		respondWithJson(w, http.StatusCreated, newUser)
+		resObj := loginUserResponse{user.Id, user.Email}
+
+		respondWithJson(w, http.StatusOK, resObj)
 	})
 
 	http.ListenAndServe(":"+port, mux)
@@ -167,6 +171,15 @@ type loginUserRequest struct {
 	Password string `json:"password"`
 }
 
+type createUserResponse struct {
+	Id    int    `json:"id"`
+	Email string `json:"email"`
+}
+
+type loginUserResponse struct {
+	Id    int    `json:"id"`
+	Email string `json:"email"`
+}
 
 type ErrorResponse struct {
 	Error string `json:"error"`
