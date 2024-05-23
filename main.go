@@ -4,14 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/joho/godotenv"
 	"github.com/walrus811/chirpy/internal/database"
 )
 
 type apiConfig struct {
 	fileserverHits int
+	jwtSecret      string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -22,6 +27,11 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 }
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		fmt.Println("Error loading .env file")
+		return
+	}
 	const filepathRoot = "."
 	const port = "8080"
 	const dbPath = "database.json"
@@ -32,7 +42,7 @@ func main() {
 		return
 	}
 
-	cfg := &apiConfig{fileserverHits: 0}
+	cfg := &apiConfig{fileserverHits: 0, jwtSecret: os.GetEnv("JWT_SECRET")}
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /app/*", http.StripPrefix("/app/", cfg.middlewareMetricsInc(http.FileServer(http.Dir(filepathRoot)))))
@@ -167,8 +177,9 @@ type createUserRequest struct {
 }
 
 type loginUserRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email            string `json:"email"`
+	Password         string `json:"password"`
+	ExpiresInSeconds int    `json:"expires_in_seconds"`
 }
 
 type createUserResponse struct {
@@ -203,4 +214,9 @@ func makeWordClean(word string) string {
 		return "****"
 	}
 	return word
+}
+
+func getJWTString(cfg apiConfig, id string, ExpiresInSeconds int) string {
+	jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{Issuer: "chirpy", IssuedAt: jwt.NewNumericDate(time.Now()), Subject: id})
+	return ""
 }
