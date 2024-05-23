@@ -6,46 +6,15 @@ import (
 	"sync"
 )
 
-type Chirp struct {
-	Id   int    `json:"id"`
-	Body string `json:"body"`
-}
-
 type DBStructure struct {
 	Chirps map[int]Chirp `json:"chirps"`
+	Users  map[int]User  `json:"users"`
 }
 
 type DB struct {
 	path        string
 	mux         *sync.RWMutex
 	dbStructure DBStructure
-}
-
-func (db *DB) CreateChirp(body string) (Chirp, error) {
-	newChirp := Chirp{
-		Id:   len(db.dbStructure.Chirps) + 1,
-		Body: body,
-	}
-
-	db.dbStructure.Chirps[newChirp.Id] = newChirp
-
-	err := db.writeDB(db.dbStructure)
-
-	if err != nil {
-		return Chirp{}, err
-	}
-
-	return newChirp, nil
-}
-
-func (db *DB) GetChirps() ([]Chirp, error) {
-	chirps := make([]Chirp, 0)
-
-	for _, chirp := range db.dbStructure.Chirps {
-		chirps = append(chirps, chirp)
-	}
-
-	return chirps, nil
 }
 
 func (db *DB) ensureDB() error {
@@ -56,7 +25,7 @@ func (db *DB) ensureDB() error {
 			return err
 		}
 
-		_, err = file.WriteString(`{"chirps":{}}`)
+		_, err = file.WriteString(`{"chirps":{}, "users":{}}`)
 		if err != nil {
 			return err
 		}

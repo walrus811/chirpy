@@ -70,7 +70,13 @@ func main() {
 			return
 		}
 
-		respondWithJson(w, http.StatusOK, chirpID)
+		chirp, getErr := db.GetChirp(chirpID)
+		if getErr != nil {
+			respondWithError(w, http.StatusNotFound, "not found")
+			return
+		}
+
+		respondWithJson(w, http.StatusOK, chirp)
 	})
 	mux.HandleFunc("GET /api/chirps", func(w http.ResponseWriter, r *http.Request) {
 		chrips, err := db.GetChirps()
@@ -106,12 +112,61 @@ func main() {
 		respondWithJson(w, http.StatusCreated, newChirp)
 	})
 
+	mux.HandleFunc("POST /api/users", func(w http.ResponseWriter, r *http.Request) {
+		decoder := json.NewDecoder(r.Body)
+		reqObj := createUserRequest{}
+		err := decoder.Decode(&reqObj)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		newUser, createErr := db.CreateUser(reqObj.Email, reqObj.Password)
+
+		if createErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		respondWithJson(w, http.StatusCreated, newUser)
+	})
+
+	mux.HandleFunc("POST /api/login", func(w http.ResponseWriter, r *http.Request) {
+		decoder := json.NewDecoder(r.Body)
+		reqObj := loginUserRequest{}
+		err := decoder.Decode(&reqObj)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		newUser, createErr := db.CreateUser(reqObj.Email, reqObj.Password)
+
+		if createErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		respondWithJson(w, http.StatusCreated, newUser)
+	})
+
 	http.ListenAndServe(":"+port, mux)
 }
 
 type createChirpRequest struct {
 	Body string `json:"body"`
 }
+
+type createUserRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type loginUserRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
 
 type ErrorResponse struct {
 	Error string `json:"error"`
