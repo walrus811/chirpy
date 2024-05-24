@@ -42,7 +42,7 @@ func main() {
 		return
 	}
 
-	cfg := &apiConfig{fileserverHits: 0, jwtSecret: os.GetEnv("JWT_SECRET")}
+	cfg := &apiConfig{fileserverHits: 0, jwtSecret: os.Getenv("JWT_SECRET")}
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /app/*", http.StripPrefix("/app/", cfg.middlewareMetricsInc(http.FileServer(http.Dir(filepathRoot)))))
@@ -159,7 +159,54 @@ func main() {
 			return
 		}
 
-		resObj := loginUserResponse{user.Id, user.Email}
+		token, tokenErr := getJWTString(cfg.jwtSecret, strconv.Itoa(user.Id), reqObj.ExpiresInSeconds)
+
+		if tokenErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		resObj := loginUserResponse{user.Id, user.Email, token}
+
+		respondWithJson(w, http.StatusOK, resObj)
+	})
+
+	mux.HandleFunc("PUT /api/users", func(w http.ResponseWriter, r *http.Request) {
+		authKey := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
+
+		var jwtClaim jwt.Claims = jwt.RegisteredClaims{}
+		token, tokenErr := jwt.ParseWithClaims(authKey, jwtClaim, func(token *jwt.Token) (interface{}, error) {
+			return []byte(cfg.jwtSecret), nil
+		})
+
+		if tokenErr != nil {
+			respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		reqObj := loginUserRequest{}
+		err := decoder.Decode(&reqObj)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		user, loginErr := db.LoginUser(reqObj.Email, reqObj.Password)
+
+		if loginErr != nil {
+			respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		token, tokenErr := getJWTString(cfg.jwtSecret, strconv.Itoa(user.Id), reqObj.ExpiresInSeconds)
+
+		if tokenErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		resObj := loginUserResponse{user.Id, user.Email, token}
 
 		respondWithJson(w, http.StatusOK, resObj)
 	})
@@ -190,6 +237,7 @@ type createUserResponse struct {
 type loginUserResponse struct {
 	Id    int    `json:"id"`
 	Email string `json:"email"`
+	Token string `json:"token"`
 }
 
 type ErrorResponse struct {
@@ -208,15 +256,15 @@ func respondWithJson(w http.ResponseWriter, code int, payload interface{}) {
 	json.NewEncoder(w).Encode(payload)
 }
 
-func makeWordClean(word string) string {
-	lower := strings.ToLower(word)
-	if lower == "kerfuffle" || lower == "sharbert" || lower == "fornax" {
-		return "****"
-	}
-	return word
-}
+func getJWTString(signKey, id string, ExpiresInSeconds int) (string, error) {
+	claim := jwt.RegisteredClaims{Issuer: "chirpy", IssuedAt: jwt.NewNumericDate(time.Now().UTC()), Subject: id}
+	if ExpiresInSeconds != 0 {
+		claim.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Duration(ExpiresInSeconds) * time.Second))
+	} else {
+		claim.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Duration(24) * time.Hour))
 
-func getJWTString(cfg apiConfig, id string, ExpiresInSeconds int) string {
-	jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{Issuer: "chirpy", IssuedAt: jwt.NewNumericDate(time.Now()), Subject: id})
-	return ""
+	}
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claim).SignedString([]byte(signKey))
+
+	return token, err
 }
