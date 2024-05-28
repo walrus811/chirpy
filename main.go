@@ -174,8 +174,8 @@ func main() {
 	mux.HandleFunc("PUT /api/users", func(w http.ResponseWriter, r *http.Request) {
 		authKey := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
 
-		var jwtClaim jwt.Claims = jwt.RegisteredClaims{}
-		token, tokenErr := jwt.ParseWithClaims(authKey, jwtClaim, func(token *jwt.Token) (interface{}, error) {
+		var jwtClaim jwt.Claims = &jwt.RegisteredClaims{}
+		_, tokenErr := jwt.ParseWithClaims(authKey, jwtClaim, func(token *jwt.Token) (interface{}, error) {
 			return []byte(cfg.jwtSecret), nil
 		})
 
@@ -184,29 +184,37 @@ func main() {
 			return
 		}
 
+		userIdStr, getSubjectErr := jwtClaim.GetSubject()
+
+		if getSubjectErr != nil {
+			fmt.Println(getSubjectErr)
+			respondWithError(w, http.StatusInternalServerError, "Unauthorized")
+			return
+		}
+
+		userId, atoiErr := strconv.Atoi(userIdStr)
+
+		if atoiErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
 		decoder := json.NewDecoder(r.Body)
-		reqObj := loginUserRequest{}
+		reqObj := updateUserRequest{}
 		err := decoder.Decode(&reqObj)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
 			return
 		}
 
-		user, loginErr := db.LoginUser(reqObj.Email, reqObj.Password)
+		user, updateErr := db.UpdateUser(userId, reqObj.Email, reqObj.Password)
 
-		if loginErr != nil {
-			respondWithError(w, http.StatusUnauthorized, "Unauthorized")
-			return
-		}
-
-		token, tokenErr := getJWTString(cfg.jwtSecret, strconv.Itoa(user.Id), reqObj.ExpiresInSeconds)
-
-		if tokenErr != nil {
+		if updateErr != nil {
 			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
 			return
 		}
 
-		resObj := loginUserResponse{user.Id, user.Email, token}
+		resObj := updateUserResponse{user.Id, user.Email}
 
 		respondWithJson(w, http.StatusOK, resObj)
 	})
@@ -229,7 +237,17 @@ type loginUserRequest struct {
 	ExpiresInSeconds int    `json:"expires_in_seconds"`
 }
 
+type updateUserRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
 type createUserResponse struct {
+	Id    int    `json:"id"`
+	Email string `json:"email"`
+}
+
+type updateUserResponse struct {
 	Id    int    `json:"id"`
 	Email string `json:"email"`
 }

@@ -180,3 +180,48 @@ func TestLogin(t *testing.T) {
 		t.Errorf("Error cleaning up: %v", removeErr)
 	}
 }
+
+func TestUpdateUsers(t *testing.T) {
+	dbPath := "TestUpdateUsers.json"
+	db, newDBErr := NewDB(dbPath)
+	if newDBErr != nil {
+		t.Errorf("Error creating DB: %v", newDBErr)
+	}
+	if db == nil {
+		t.Errorf("DB is nil")
+	}
+	testData := User{
+		Email: "t1@naver.com", Password: "1234",
+	}
+
+	newEmail := "t2@gmail.com"
+	newPassword := "12345"
+
+	user, createErr := db.CreateUser(testData.Email, testData.Password)
+	if createErr != nil {
+		t.Errorf("Error creating user: %v", createErr)
+	}
+
+	_, updateErr := db.UpdateUser(user.Id, newEmail, newPassword)
+
+	if updateErr != nil {
+		t.Errorf("Error updating user: %v", updateErr)
+	}
+
+	updatedUser, getErr := db.GetUser(user.Id)
+
+	if getErr != nil {
+		t.Errorf("Error getting user: %v", getErr)
+	}
+
+	if updatedUser.Email != newEmail {
+		t.Errorf("Expected %v, got %v", newEmail, updatedUser.Email)
+	}
+
+	// Cleanup
+
+	removeErr := os.Remove(dbPath)
+	if removeErr != nil {
+		t.Errorf("Error cleaning up: %v", removeErr)
+	}
+}
