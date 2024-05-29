@@ -98,7 +98,31 @@ func main() {
 
 		respondWithJson(w, http.StatusOK, chrips)
 	})
+
 	mux.HandleFunc("POST /api/chirps", func(w http.ResponseWriter, r *http.Request) {
+		authKey := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
+
+		jwtClaim, getJwtClainErr := getJWTClaim(cfg.jwtSecret, authKey)
+
+		if getJwtClainErr != nil {
+			respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		userIdStr, getSubjectErr := jwtClaim.GetSubject()
+
+		if getSubjectErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		userId, atoiErr := strconv.Atoi(userIdStr)
+
+		if atoiErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
 		decoder := json.NewDecoder(r.Body)
 		reqObj := createChirpRequest{}
 		err := decoder.Decode(&reqObj)
@@ -112,7 +136,7 @@ func main() {
 			return
 		}
 
-		newChirp, createErr := db.CreateChirp(reqObj.Body)
+		newChirp, createErr := db.CreateChirp(reqObj.Body, userId)
 
 		if createErr != nil {
 			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
@@ -120,6 +144,56 @@ func main() {
 		}
 
 		respondWithJson(w, http.StatusCreated, newChirp)
+	})
+
+	
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", func(w http.ResponseWriter, r *http.Request) {
+		authKey := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
+
+		jwtClaim, getJwtClainErr := getJWTClaim(cfg.jwtSecret, authKey)
+
+		if getJwtClainErr != nil {
+			respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		userIdStr, getSubjectErr := jwtClaim.GetSubject()
+
+		if getSubjectErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		userId, atoiErr := strconv.Atoi(userIdStr)
+
+		if atoiErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		chirpID, getChirpIDErr := strconv.Atoi(r.PathValue("chirpID"))
+
+		if getChirpIDErr != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid chirp ID")
+			return
+		}
+
+
+		_, getChirpErr := db.GetChirp(chirpID)
+	
+		if getChirpErr != nil {
+			respondWithError(w, http.StatusForbidden, "Forbidden")
+			return
+		}
+
+		deleteErr := db.DeleteChirp(chirpID)
+
+		if deleteErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		respondWithJson(w, http.StatusNoContent, nil)
 	})
 
 	mux.HandleFunc("POST /api/users", func(w http.ResponseWriter, r *http.Request) {
@@ -181,12 +255,9 @@ func main() {
 	mux.HandleFunc("PUT /api/users", func(w http.ResponseWriter, r *http.Request) {
 		authKey := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
 
-		var jwtClaim jwt.Claims = &jwt.RegisteredClaims{}
-		_, tokenErr := jwt.ParseWithClaims(authKey, jwtClaim, func(token *jwt.Token) (interface{}, error) {
-			return []byte(cfg.jwtSecret), nil
-		})
+		jwtClaim, getJwtClainErr := getJWTClaim(cfg.jwtSecret, authKey)
 
-		if tokenErr != nil {
+		if getJwtClainErr != nil {
 			respondWithError(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
@@ -330,4 +401,13 @@ func getJWTString(signKey, id string) (string, error) {
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claim).SignedString([]byte(signKey))
 
 	return token, err
+}
+
+func getJWTClaim(signKey, token string) (jwt.Claims, error) {
+	var jwtClaim jwt.Claims = &jwt.RegisteredClaims{}
+	_, err := jwt.ParseWithClaims(token, jwtClaim, func(token *jwt.Token) (interface{}, error) {
+		return []byte(signKey), nil
+	})
+
+	return jwtClaim, err
 }

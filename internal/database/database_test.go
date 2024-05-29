@@ -34,15 +34,27 @@ func TestGetChirps(t *testing.T) {
 		t.Errorf("DB is nil")
 	}
 
-	testData := []string{
-		"t1",
-		"t2",
-		"t3",
-		"t4",
+	testUserEmail := "test@nddw.com"
+	testUserPassword := "12345"
+
+	testUser, createUserErr := db.CreateUser(testUserEmail, testUserPassword)
+
+	if createUserErr != nil {
+		t.Errorf("Error creating user: %v", createUserErr)
+	}
+
+	testData := []struct {
+		body     string
+		authorId int
+	}{
+		{body: "t1", authorId: testUser.Id},
+		{body: "t2", authorId: testUser.Id},
+		{body: "t3", authorId: testUser.Id},
+		{body: "t4", authorId: testUser.Id},
 	}
 
 	for _, data := range testData {
-		_, createErr := db.CreateChirp(data)
+		_, createErr := db.CreateChirp(data.body, data.authorId)
 		if createErr != nil {
 			t.Errorf("Error creating chirp: %v", createErr)
 		}
@@ -75,15 +87,26 @@ func TestGetChirp(t *testing.T) {
 		t.Errorf("DB is nil")
 	}
 
-	testData := []string{
-		"t1",
-		"t2",
-		"t3",
-		"t4",
+	testUserEmail := "test@nddw.com"
+	testUserPassword := "12345"
+
+	testUser, createUserErr := db.CreateUser(testUserEmail, testUserPassword)
+
+	if createUserErr != nil {
+		t.Errorf("Error creating user: %v", createUserErr)
 	}
 
+	testData := []struct {
+		body     string
+		authorId int
+	}{
+		{body: "t1", authorId: testUser.Id},
+		{body: "t2", authorId: testUser.Id},
+		{body: "t3", authorId: testUser.Id},
+		{body: "t4", authorId: testUser.Id},
+	}
 	for _, data := range testData {
-		_, createErr := db.CreateChirp(data)
+		_, createErr := db.CreateChirp(data.body, data.authorId)
 		if createErr != nil {
 			t.Errorf("Error creating chirp: %v", createErr)
 		}
@@ -95,7 +118,7 @@ func TestGetChirp(t *testing.T) {
 		t.Errorf("Error getting chirps: %v", getErr)
 	}
 
-	if chirp.Body != testData[len(testData)-1] {
+	if chirp.Body != testData[len(testData)-1].body {
 		t.Errorf("Expected %v, got %v", testData[len(testData)-1], chirp.Body)
 	}
 

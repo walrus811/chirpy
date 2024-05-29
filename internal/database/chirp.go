@@ -3,14 +3,22 @@ package database
 import "fmt"
 
 type Chirp struct {
-	Id   int    `json:"id"`
-	Body string `json:"body"`
+	Id       int    `json:"id"`
+	Body     string `json:"body"`
+	AuthorId int    `json:"author_id"`
 }
 
-func (db *DB) CreateChirp(body string) (Chirp, error) {
+func (db *DB) CreateChirp(body string, authorId int) (Chirp, error) {
+	_, getUserErr := db.GetUser(authorId)
+
+	if getUserErr != nil {
+		return Chirp{}, fmt.Errorf("user not found")
+	}
+
 	newChirp := Chirp{
-		Id:   len(db.dbStructure.Chirps) + 1,
-		Body: body,
+		Id:       len(db.dbStructure.Chirps) + 1,
+		Body:     body,
+		AuthorId: authorId,
 	}
 
 	db.dbStructure.Chirps[newChirp.Id] = newChirp
@@ -22,6 +30,24 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 	}
 
 	return newChirp, nil
+}
+
+func (db *DB) DeleteChirp(id int) error {
+	_, ok := db.dbStructure.Chirps[id]
+
+	if !ok {
+		return fmt.Errorf("chirp not found")
+	}
+
+	delete(db.dbStructure.Chirps, id)
+
+	err := db.writeDB(db.dbStructure)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (db *DB) GetChirps() ([]Chirp, error) {
