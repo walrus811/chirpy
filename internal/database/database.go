@@ -7,8 +7,9 @@ import (
 )
 
 type DBStructure struct {
-	Chirps map[int]Chirp `json:"chirps"`
-	Users  map[int]User  `json:"users"`
+	Chirps        map[int]Chirp  `json:"chirps"`
+	Users         map[int]User   `json:"users"`
+	RefreshTokens map[int]string `json:"refreshTokens"`
 }
 
 type DB struct {
@@ -25,7 +26,7 @@ func (db *DB) ensureDB() error {
 			return err
 		}
 
-		_, err = file.WriteString(`{"chirps":{}, "users":{}}`)
+		_, err = file.WriteString(`{"chirps":{}, "users":{}, "refreshTokens":{}}`)
 		if err != nil {
 			return err
 		}

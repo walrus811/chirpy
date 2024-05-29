@@ -225,3 +225,88 @@ func TestUpdateUsers(t *testing.T) {
 		t.Errorf("Error cleaning up: %v", removeErr)
 	}
 }
+
+func TestCreateRefreshToken(t *testing.T) {
+	dbPath := "TestCreateRefreshToken.json"
+	db, newDBErr := NewDB(dbPath)
+	if newDBErr != nil {
+		t.Errorf("Error creating DB: %v", newDBErr)
+	}
+	if db == nil {
+		t.Errorf("DB is nil")
+	}
+	testData := []int{1, 2, 3}
+
+	for _, userId := range testData {
+		_, createErr := db.CreateRefreshToken(userId)
+		if createErr != nil {
+			t.Errorf("Error creating refresh token: %v", createErr)
+		}
+	}
+
+	for _, userId := range testData {
+		token, getErr := db.GetRefreshToken(userId)
+		if getErr != nil {
+			t.Errorf("Error getting refresh token: %v", getErr)
+		}
+
+		if len(token) == 0 {
+			t.Errorf("Expected token, got empty string")
+		}
+	}
+
+	// Cleanup
+
+	removeErr := os.Remove(dbPath)
+	if removeErr != nil {
+		t.Errorf("Error cleaning up: %v", removeErr)
+	}
+}
+
+func TestDeleteeRefreshToken(t *testing.T) {
+	dbPath := "TestDeleteeRefreshToken.json"
+	db, newDBErr := NewDB(dbPath)
+	if newDBErr != nil {
+		t.Errorf("Error creating DB: %v", newDBErr)
+	}
+	if db == nil {
+		t.Errorf("DB is nil")
+	}
+	testData := []int{1, 2, 3}
+
+	tokens := make([]string, 0)
+
+	for _, userId := range testData {
+		token, createErr := db.CreateRefreshToken(userId)
+		if createErr != nil {
+			t.Errorf("Error creating refresh token: %v", createErr)
+		}
+		tokens = append(tokens, token)
+	}
+
+	db.DeleteRefreshToken(tokens[0])
+
+	for _, userId := range testData {
+		token, getErr := db.GetRefreshToken(userId)
+		if userId == testData[0] {
+			if len(token) != 0 {
+				t.Errorf("%v's token must be deleted.", userId)
+			}
+		} else {
+			if getErr != nil {
+				t.Errorf("Error getting refresh token: %v", getErr)
+			}
+
+			if len(token) == 0 {
+				t.Errorf("Expected token, got empty string")
+			}
+		}
+	}
+
+	// Cleanup
+
+	removeErr := os.Remove(dbPath)
+	if removeErr != nil {
+		t.Errorf("Error cleaning up: %v", removeErr)
+	}
+}

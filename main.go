@@ -159,14 +159,21 @@ func main() {
 			return
 		}
 
-		token, tokenErr := getJWTString(cfg.jwtSecret, strconv.Itoa(user.Id), reqObj.ExpiresInSeconds)
+		token, tokenErr := getJWTString(cfg.jwtSecret, strconv.Itoa(user.Id))
 
 		if tokenErr != nil {
 			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
 			return
 		}
 
-		resObj := loginUserResponse{user.Id, user.Email, token}
+		refreshToken, CreateRefreshTokenErr := db.CreateRefreshToken(user.Id)
+
+		if CreateRefreshTokenErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		resObj := loginUserResponse{user.Id, user.Email, token, refreshToken}
 
 		respondWithJson(w, http.StatusOK, resObj)
 	})
@@ -219,6 +226,41 @@ func main() {
 		respondWithJson(w, http.StatusOK, resObj)
 	})
 
+	mux.HandleFunc("POST /api/refresh", func(w http.ResponseWriter, r *http.Request) {
+		refershToken := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
+
+		userId, getUserIdErr := db.GetUserIdByToken(refershToken)
+
+		if getUserIdErr != nil {
+			respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		newToken, getTokenErr := getJWTString(cfg.jwtSecret, strconv.Itoa(userId))
+
+		if getTokenErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		resObj := refershTokrnResponse{newToken}
+
+		respondWithJson(w, http.StatusOK, resObj)
+	})
+
+	mux.HandleFunc("POST /api/revoke", func(w http.ResponseWriter, r *http.Request) {
+		refershToken := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
+
+		deleteErr := db.DeleteRefreshToken(refershToken)
+
+		if deleteErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	http.ListenAndServe(":"+port, mux)
 }
 
@@ -232,9 +274,8 @@ type createUserRequest struct {
 }
 
 type loginUserRequest struct {
-	Email            string `json:"email"`
-	Password         string `json:"password"`
-	ExpiresInSeconds int    `json:"expires_in_seconds"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type updateUserRequest struct {
@@ -253,8 +294,13 @@ type updateUserResponse struct {
 }
 
 type loginUserResponse struct {
-	Id    int    `json:"id"`
-	Email string `json:"email"`
+	Id           int    `json:"id"`
+	Email        string `json:"email"`
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+type refershTokrnResponse struct {
 	Token string `json:"token"`
 }
 
@@ -274,13 +320,12 @@ func respondWithJson(w http.ResponseWriter, code int, payload interface{}) {
 	json.NewEncoder(w).Encode(payload)
 }
 
-func getJWTString(signKey, id string, ExpiresInSeconds int) (string, error) {
-	claim := jwt.RegisteredClaims{Issuer: "chirpy", IssuedAt: jwt.NewNumericDate(time.Now().UTC()), Subject: id}
-	if ExpiresInSeconds != 0 {
-		claim.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Duration(ExpiresInSeconds) * time.Second))
-	} else {
-		claim.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Duration(24) * time.Hour))
-
+func getJWTString(signKey, id string) (string, error) {
+	claim := jwt.RegisteredClaims{
+		Issuer:    "chirpy",
+		IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+		Subject:   id,
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(1) * time.Hour)),
 	}
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claim).SignedString([]byte(signKey))
 
