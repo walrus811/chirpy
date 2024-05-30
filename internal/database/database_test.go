@@ -225,7 +225,7 @@ func TestUpdateUsers(t *testing.T) {
 		t.Errorf("Error creating user: %v", createErr)
 	}
 
-	_, updateErr := db.UpdateUser(user.Id, newEmail, newPassword)
+	_, updateErr := db.UpdateUser(user.Id, newEmail, newPassword, user.IsChirpyRed)
 
 	if updateErr != nil {
 		t.Errorf("Error updating user: %v", updateErr)

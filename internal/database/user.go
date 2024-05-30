@@ -7,9 +7,10 @@ import (
 )
 
 type User struct {
-	Id       int    `json:"id"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Id          int    `json:"id"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 func (db *DB) toHash(text string) (string, error) {
@@ -23,8 +24,6 @@ func (db *DB) toHash(text string) (string, error) {
 }
 
 func (db *DB) DeleteUser(id int) error {
-
-	
 	_, ok := db.dbStructure.Users[id]
 
 	if !ok {
@@ -75,9 +74,10 @@ func (db *DB) CreateUser(email, password string) (User, error) {
 	}
 
 	newUser := User{
-		Id:       len(db.dbStructure.Users) + 1,
-		Email:    email,
-		Password: string(hashed),
+		Id:          len(db.dbStructure.Users) + 1,
+		Email:       email,
+		Password:    string(hashed),
+		IsChirpyRed: false,
 	}
 
 	db.dbStructure.Users[newUser.Id] = newUser
@@ -91,7 +91,7 @@ func (db *DB) CreateUser(email, password string) (User, error) {
 	return newUser, nil
 }
 
-func (db *DB) UpdateUser(id int, newEmail, newPassword string) (User, error) {
+func (db *DB) UpdateUser(id int, newEmail, newPassword string, isChirpyRed bool) (User, error) {
 
 	user, getErr := db.GetUser(id)
 
@@ -110,6 +110,8 @@ func (db *DB) UpdateUser(id int, newEmail, newPassword string) (User, error) {
 		}
 		user.Password = string(hashed)
 	}
+
+	user.IsChirpyRed = isChirpyRed
 
 	db.dbStructure.Users[user.Id] = user
 

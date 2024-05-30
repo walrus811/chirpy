@@ -215,7 +215,7 @@ func main() {
 			return
 		}
 
-		resObj := createUserResponse{newUser.Id, newUser.Email}
+		resObj := createUserResponse{newUser.Id, newUser.Email, newUser.IsChirpyRed}
 
 		respondWithJson(w, http.StatusCreated, resObj)
 	})
@@ -250,7 +250,7 @@ func main() {
 			return
 		}
 
-		resObj := loginUserResponse{user.Id, user.Email, token, refreshToken}
+		resObj := loginUserResponse{user.Id, user.Email, user.IsChirpyRed, token, refreshToken}
 
 		respondWithJson(w, http.StatusOK, resObj)
 	})
@@ -288,14 +288,14 @@ func main() {
 			return
 		}
 
-		user, updateErr := db.UpdateUser(userId, reqObj.Email, reqObj.Password)
+		user, updateErr := db.UpdateUser(userId, reqObj.Email, reqObj.Password, false)
 
 		if updateErr != nil {
 			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
 			return
 		}
 
-		resObj := updateUserResponse{user.Id, user.Email}
+		resObj := updateUserResponse{user.Id, user.Email, user.IsChirpyRed}
 
 		respondWithJson(w, http.StatusOK, resObj)
 	})
@@ -335,6 +335,37 @@ func main() {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	mux.HandleFunc("POST /api/polka/webhooks", func(w http.ResponseWriter, r *http.Request) {
+		decoder := json.NewDecoder(r.Body)
+		reqObj := polkaWebhookRequest{}
+		err := decoder.Decode(&reqObj)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		if reqObj.Event != "user.upgraded" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		_, userGetErr := db.GetUser(reqObj.Data.UserId)
+
+		if userGetErr != nil {
+			respondWithError(w, http.StatusNotFound, "User not found")
+			return
+		}
+
+		_, updateErr := db.UpdateUser(reqObj.Data.UserId, "", "", true)
+
+		if updateErr != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	http.ListenAndServe(":"+port, mux)
 }
 
@@ -357,19 +388,29 @@ type updateUserRequest struct {
 	Password string `json:"password"`
 }
 
+type polkaWebhookRequest struct {
+	Event string `json:"event"`
+	Data  struct {
+		UserId int `json:"user_id"`
+	} `json:"data"`
+}
+
 type createUserResponse struct {
-	Id    int    `json:"id"`
-	Email string `json:"email"`
+	Id          int    `json:"id"`
+	Email       string `json:"email"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 type updateUserResponse struct {
-	Id    int    `json:"id"`
-	Email string `json:"email"`
+	Id          int    `json:"id"`
+	Email       string `json:"email"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 type loginUserResponse struct {
 	Id           int    `json:"id"`
 	Email        string `json:"email"`
+	IsChirpyRed  bool   `json:"is_chirpy_red"`
 	Token        string `json:"token"`
 	RefreshToken string `json:"refresh_token"`
 }
