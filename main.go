@@ -146,7 +146,6 @@ func main() {
 		respondWithJson(w, http.StatusCreated, newChirp)
 	})
 
-	
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", func(w http.ResponseWriter, r *http.Request) {
 		authKey := strings.Split(r.Header.Get("Authorization"), "Bearer ")[1]
 
@@ -178,10 +177,14 @@ func main() {
 			return
 		}
 
+		chirp, getChirpErr := db.GetChirp(chirpID)
 
-		_, getChirpErr := db.GetChirp(chirpID)
-	
 		if getChirpErr != nil {
+			respondWithError(w, http.StatusForbidden, "Forbidden")
+			return
+		}
+
+		if chirp.AuthorId != userId {
 			respondWithError(w, http.StatusForbidden, "Forbidden")
 			return
 		}

@@ -22,6 +22,26 @@ func (db *DB) toHash(text string) (string, error) {
 	return string(hashed), nil
 }
 
+func (db *DB) DeleteUser(id int) error {
+
+	
+	_, ok := db.dbStructure.Users[id]
+
+	if !ok {
+		return fmt.Errorf("user not found")
+	}
+
+	delete(db.dbStructure.Users, id)
+
+	err := db.writeDB(db.dbStructure)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (db *DB) LoginUser(email, password string) (User, error) {
 	for _, user := range db.dbStructure.Users {
 		if user.Email == email {
