@@ -17,6 +17,7 @@ import (
 type apiConfig struct {
 	fileserverHits int
 	jwtSecret      string
+	polkaKey       string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -42,7 +43,7 @@ func main() {
 		return
 	}
 
-	cfg := &apiConfig{fileserverHits: 0, jwtSecret: os.Getenv("JWT_SECRET")}
+	cfg := &apiConfig{fileserverHits: 0, jwtSecret: os.Getenv("JWT_SECRET"), polkaKey: os.Getenv("POLKA_KEY")}
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /app/*", http.StripPrefix("/app/", cfg.middlewareMetricsInc(http.FileServer(http.Dir(filepathRoot)))))
@@ -89,14 +90,32 @@ func main() {
 		respondWithJson(w, http.StatusOK, chirp)
 	})
 	mux.HandleFunc("GET /api/chirps", func(w http.ResponseWriter, r *http.Request) {
-		chrips, err := db.GetChirps()
+		authorIdString := r.URL.Query().Get("author_id")
 
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
-			return
+		if len(authorIdString) > 0 {
+			authorId, atoiErr := strconv.Atoi(authorIdString)
+
+			if atoiErr != nil {
+				respondWithError(w, http.StatusBadRequest, "Invalid author ID")
+				return
+			}
+
+			chrips, err := db.GetChirpsByAuthorId(authorId)
+
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+				return
+			}
+			respondWithJson(w, http.StatusOK, chrips)
+		} else {
+			chrips, err := db.GetChirps()
+
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+				return
+			}
+			respondWithJson(w, http.StatusOK, chrips)
 		}
-
-		respondWithJson(w, http.StatusOK, chrips)
 	})
 
 	mux.HandleFunc("POST /api/chirps", func(w http.ResponseWriter, r *http.Request) {
@@ -336,6 +355,19 @@ func main() {
 	})
 
 	mux.HandleFunc("POST /api/polka/webhooks", func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+
+		if len(authHeader) == 0 {
+			respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		apiKey := strings.Split(authHeader, "ApiKey ")[1]
+		if apiKey != cfg.polkaKey {
+			respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
 		decoder := json.NewDecoder(r.Body)
 		reqObj := polkaWebhookRequest{}
 		err := decoder.Decode(&reqObj)
