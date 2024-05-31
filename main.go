@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -90,6 +91,14 @@ func main() {
 		respondWithJson(w, http.StatusOK, chirp)
 	})
 	mux.HandleFunc("GET /api/chirps", func(w http.ResponseWriter, r *http.Request) {
+		asc := true
+
+		sortString := r.URL.Query().Get("sort")
+
+		if len(sortString) > 0 && sortString == "desc" {
+			asc = false
+		}
+
 		authorIdString := r.URL.Query().Get("author_id")
 
 		if len(authorIdString) > 0 {
@@ -102,6 +111,13 @@ func main() {
 
 			chrips, err := db.GetChirpsByAuthorId(authorId)
 
+			sort.Slice(chrips, func(i, j int) bool {
+				if asc {
+					return chrips[i].Id < chrips[j].Id
+				}
+				return chrips[i].Id > chrips[j].Id
+			})
+
 			if err != nil {
 				respondWithError(w, http.StatusInternalServerError, "Something went wrong")
 				return
@@ -109,6 +125,13 @@ func main() {
 			respondWithJson(w, http.StatusOK, chrips)
 		} else {
 			chrips, err := db.GetChirps()
+
+			sort.Slice(chrips, func(i, j int) bool {
+				if asc {
+					return chrips[i].Id < chrips[j].Id
+				}
+				return chrips[i].Id > chrips[j].Id
+			})
 
 			if err != nil {
 				respondWithError(w, http.StatusInternalServerError, "Something went wrong")
